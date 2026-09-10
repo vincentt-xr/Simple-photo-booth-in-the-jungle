@@ -31,7 +31,8 @@ const faceMesh = resolveFaceMeshRendererSettings(DEFAULT_FACE_MESH_RENDERER, {
 });
 
 export const Scene = () => {
-  // Keep preview drag/resize edits in React state, so they survive re-renders.
+  // Keep transform edits in React state so editor preview drag/resize changes
+  // survive re-renders. For a simple fixed asset, use a plain constant instead.
   const [hatTransform, setHatTransform] = useState<ScreenTransform2DSettings>({
     enabled: true,
     position: { x: 0, y: 140 },
@@ -77,7 +78,7 @@ export const Scene = () => {
   const [portraitFrameTransform] = useState<ScreenTransform2DSettings>({
     enabled: true,
     position: { x: 0, y: 0 },
-    size: { width: 720, height: 1920 },
+    size: { width: 720, height: 1280 },
     pivot: [0.5, 0.5],
     rotation: 0,
     scale2D: { x: 1, y: 1 },
@@ -90,10 +91,14 @@ export const Scene = () => {
 
   return (
     <>
+      {/* 1. FACE EFFECT — replace the texture URL to create a different mask. */}
       <FaceMeshRenderer value={faceMesh} />
+
+      {/* 2. FACE-ATTACHED ASSETS — change the image URL or tracking target. */}
       <FaceTracker>
         <TrackingAnchor target="face.forehead" smoothing={15}>
           <ScreenSpaceUI>
+            {/* Replace /assets/hat.png with your own transparent PNG. */}
             <ScreenImage
               name="Hat"
               src="/assets/hat.png"
@@ -120,6 +125,8 @@ export const Scene = () => {
           </ScreenSpaceUI>
         </TrackingAnchor>
       </FaceTracker>
+
+      {/* 3. SCREEN-SPACE DECORATION — these elements stay fixed to the frame. */}
       <ScreenSpaceUI>
         <ScreenImage
           name="Footer Frame"

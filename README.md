@@ -18,6 +18,18 @@ src/
 
 See `AGENTS.md` and `GROUNDING.md` for the API reference and how to author scenes.
 
+## Make your first remix
+
+Edit `src/Scene.tsx` to change the experience:
+
+- Replace `/assets/hat.png` with your own transparent PNG.
+- Change `target="face.forehead"` to another tracking target.
+- Adjust `position`, `size`, and `rotation` in the transform settings.
+- Replace or remove the decorative images inside `ScreenSpaceUI`.
+- Put custom assets in `public/assets/`.
+
+The protected files contain the Vincentt runtime and normally should not be edited.
+
 ## Develop
 
 ```

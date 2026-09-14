@@ -1,4 +1,4 @@
-# v2-template
+# In the Jungle Photo Booth
 
 The Vincentt starter app: a real React + R3F + Vincentt XR SDK (`@vincentt-xr/sdk`)
 WebXR app, bundled by esbuild.

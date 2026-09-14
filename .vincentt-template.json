@@ -27,6 +27,10 @@
     "esbuild.config.mjs"
   ],
   "creator": [
-    "src/Scene.tsx"
+    "src/Scene.tsx",
+    "src/face-overlay/FaceOverlay.tsx",
+    "src/face-overlay/faceOverlayConstants.ts",
+    "src/face-overlay/faceOverlayCoordinates.ts",
+    "src/face-overlay/useFaceOverlay.ts"
   ]
 }

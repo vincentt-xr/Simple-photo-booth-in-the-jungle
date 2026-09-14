@@ -6,3 +6,4 @@ opencode.json
 .env.local
 *.log
 .vincentt/
+.DS_Store

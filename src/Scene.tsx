@@ -15,12 +15,12 @@ import {
   ScreenSpaceUI,
   type ScreenTransform2DSettings,
 } from "@vincentt-xr/sdk";
-import { FaceTracker, TrackingAnchor } from "@vincentt-xr/sdk/tracking";
 import {
   DEFAULT_FACE_MESH_RENDERER,
   FaceMeshRenderer,
   resolveFaceMeshRendererSettings,
 } from "@vincentt-xr/sdk/face-effects";
+import { FaceOverlay } from "./face-overlay/FaceOverlay";
 
 const faceMesh = resolveFaceMeshRendererSettings(DEFAULT_FACE_MESH_RENDERER, {
   materialType: "shader",
@@ -30,10 +30,11 @@ const faceMesh = resolveFaceMeshRendererSettings(DEFAULT_FACE_MESH_RENDERER, {
   side: "front",
 });
 
+
 export const Scene = () => {
   // Keep transform edits in React state so editor preview drag/resize changes
   // survive re-renders. For a simple fixed asset, use a plain constant instead.
-  const [hatTransform, setHatTransform] = useState<ScreenTransform2DSettings>({
+  const [hatTransform] = useState<ScreenTransform2DSettings>({
     enabled: true,
     position: { x: 0, y: 140 },
     size: { width: 512, height: 512 },
@@ -62,7 +63,7 @@ export const Scene = () => {
   });
 
   const [flowerTransform] = useState<ScreenTransform2DSettings>({
-    enabled: true,
+    enabled: false,
     position: { x: 100, y: 300 },
     size: { width: 512, height: 512 },
     pivot: [0.5, 0.5],
@@ -95,36 +96,7 @@ export const Scene = () => {
       <FaceMeshRenderer value={faceMesh} />
 
       {/* 2. FACE-ATTACHED ASSETS — change the image URL or tracking target. */}
-      <FaceTracker>
-        <TrackingAnchor target="face.forehead" smoothing={15}>
-          <ScreenSpaceUI>
-            {/* Replace /assets/hat.png with your own transparent PNG. */}
-            <ScreenImage
-              name="Hat"
-              src="/assets/hat.png"
-              fit="contain"
-              transparent
-              alphaTest={0.01}
-              transform={hatTransform}
-              onScreenTransformChange={setHatTransform}
-              transformGuideLayer="overlay"
-            />
-          </ScreenSpaceUI>
-        </TrackingAnchor>
-        <TrackingAnchor target="face.forehead" smoothing={15}>
-          <ScreenSpaceUI>
-            <ScreenImage
-              name="Small Bug"
-              source={{ kind: "gif", src: "/assets/small-bug.gif" }}
-              fit="contain"
-              transparent
-              alphaTest={0.01}
-              transform={smallBugTransform}
-              renderOrder={1001}
-            />
-          </ScreenSpaceUI>
-        </TrackingAnchor>
-      </FaceTracker>
+      <FaceOverlay hat={hatTransform} bug={smallBugTransform} />
 
       {/* 3. SCREEN-SPACE DECORATION — these elements stay fixed to the frame. */}
       <ScreenSpaceUI>

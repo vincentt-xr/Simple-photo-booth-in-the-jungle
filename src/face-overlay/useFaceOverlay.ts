@@ -5,20 +5,24 @@ import type { ScreenTransform2DSettings } from "@vincentt-xr/sdk";
 import { faceBoundsCenterToScreen } from "./faceOverlayCoordinates";
 import {
   BUG_CENTER_Y_OFFSET, BUG_WIDTH_MULTIPLIER, FACE_OVERLAY_VIEWPORT,
+  TOUCAN_WIDTH_MULTIPLIER, TOUCAN_X_OFFSET_MULTIPLIER, TOUCAN_Y_OFFSET_MULTIPLIER,
   HAT_REFERENCE_FACE_WIDTH, HAT_WIDTH_MULTIPLIER, HAT_Y_OFFSET,
   MAX_HAT_OFFSET, MIN_HAT_OFFSET,
 } from "./faceOverlayConstants";
 
-export const useFaceOverlay = (hat: ScreenTransform2DSettings, bug: ScreenTransform2DSettings) => {
+export const useFaceOverlay = (hat: ScreenTransform2DSettings, bug: ScreenTransform2DSettings, toucan: ScreenTransform2DSettings) => {
   const face = useFaceInfo({ active: true, throttleMs: 0, holdMs: 0 });
   const [hatTransform, setHatTransform] = useState(hat);
   const [bugTransform, setBugTransform] = useState(bug);
+  const [toucanTransform, setToucanTransform] = useState(toucan);
   const lastLog = useRef(0);
   useFrame(() => {
     if (!face) return;
     const center = faceBoundsCenterToScreen(face.bounds.centerX, face.bounds.centerY);
     const hatSize = face.bounds.width * FACE_OVERLAY_VIEWPORT.width * HAT_WIDTH_MULTIPLIER;
     const bugSize = face.bounds.width * FACE_OVERLAY_VIEWPORT.width * BUG_WIDTH_MULTIPLIER;
+    const toucanSize = face.bounds.width * FACE_OVERLAY_VIEWPORT.width * TOUCAN_WIDTH_MULTIPLIER;
+    const faceWidthPixels = face.bounds.width * FACE_OVERLAY_VIEWPORT.width;
     const angle = face.pose.rotation.z;
     const rotation = (angle * 180) / Math.PI;
     const offset = Math.max(MIN_HAT_OFFSET, Math.min(MAX_HAT_OFFSET,
@@ -32,6 +36,15 @@ export const useFaceOverlay = (hat: ScreenTransform2DSettings, bug: ScreenTransf
     }
     setHatTransform({ ...hat, position: hatPosition, size: { width: hatSize, height: hatSize }, rotation });
     setBugTransform({ ...bug, position: { x: center.x + bugSize * 0.8, y: center.y + BUG_CENTER_Y_OFFSET }, size: { width: bugSize, height: bugSize }, rotation });
+    setToucanTransform({
+      ...toucan,
+      position: {
+        x: center.x + faceWidthPixels * TOUCAN_X_OFFSET_MULTIPLIER,
+        y: center.y + faceWidthPixels * TOUCAN_Y_OFFSET_MULTIPLIER,
+      },
+      size: { width: toucanSize, height: toucanSize * 1.2 },
+      rotation,
+    });
   });
-  return { hatTransform, bugTransform };
+  return { hatTransform, bugTransform, toucanTransform };
 };

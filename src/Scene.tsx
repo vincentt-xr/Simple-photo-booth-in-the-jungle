@@ -30,7 +30,6 @@ const faceMesh = resolveFaceMeshRendererSettings(DEFAULT_FACE_MESH_RENDERER, {
   side: "front",
 });
 
-
 export const Scene = () => {
   // Keep transform edits in React state so editor preview drag/resize changes
   // survive re-renders. For a simple fixed asset, use a plain constant instead.
@@ -57,6 +56,20 @@ export const Scene = () => {
     scale2D: { x: 1, y: 1 },
     referencePixelsPerUnit: 32,
     renderOrder: 1001,
+    overlay: true,
+    visible: true,
+    showTransformGuides: false,
+  });
+
+  const [toucanTransform] = useState<ScreenTransform2DSettings>({
+    enabled: true,
+    position: { x: 340, y: -420 },
+    size: { width: 230, height: 276 },
+    pivot: [0.5, 0.5],
+    rotation: 0,
+    scale2D: { x: 1, y: 1 },
+    referencePixelsPerUnit: 32,
+    renderOrder: 1002,
     overlay: true,
     visible: true,
     showTransformGuides: false,
@@ -96,13 +109,17 @@ export const Scene = () => {
       <FaceMeshRenderer value={faceMesh} />
 
       {/* 2. FACE-ATTACHED ASSETS — change the image URL or tracking target. */}
-      <FaceOverlay hat={hatTransform} bug={smallBugTransform} />
+      <FaceOverlay
+        hat={hatTransform}
+        bug={smallBugTransform}
+        toucan={toucanTransform}
+      />
 
       {/* 3. SCREEN-SPACE DECORATION — these elements stay fixed to the frame. */}
       <ScreenSpaceUI>
         <ScreenImage
           name="Footer Frame"
-          src="/assets/footer-frame.png"
+          src="/assets/jungle-canopy-frame.png"
           fit="contain"
           transparent
           alphaTest={0.01}

@@ -6,7 +6,9 @@
     "src/PreviewAnchors.tsx",
     "src/mediaStream.ts",
     "src/MediaSourceControl.tsx",
+    "src/MobileXRAcceptanceHarness.tsx",
     "src/framed.ts",
+    "src/experienceStatus.ts",
     "src/capture.ts",
     "src/gesture.ts",
     "src/sprite.tsx",
@@ -14,23 +16,33 @@
     "src/index.css",
     "src/vite-env.d.ts",
     "src/framed.test.ts",
+    "src/experienceStatus.test.ts",
+    "src/mediaStream.test.ts",
     "src/mediaSourceBinder.test.tsx",
     "src/mediaSourceControl.test.tsx",
+    "src/renderHold.test.tsx",
     "src/qa.f13-g11-g14.test.tsx",
     "src/qa.f13-g13-treeshake.test.ts",
+    "src/qa_f13_g45_render_hold.test.tsx",
     "src/viewerBeacon.test.tsx",
     "index.html",
     "package.json",
     "tsconfig.json",
     "tsconfig.node.json",
     "vitest.config.ts",
-    "esbuild.config.mjs"
+    "esbuild.config.mjs",
+    "src/CaptureControls.tsx",
+    "src/FrameContainer.tsx",
+    "src/captureSave.ts",
+    "src/screenFit.ts",
+    "src/screenFit.test.ts"
   ],
   "creator": [
     "src/Scene.tsx",
     "src/face-overlay/FaceOverlay.tsx",
     "src/face-overlay/faceOverlayConstants.ts",
     "src/face-overlay/faceOverlayCoordinates.ts",
-    "src/face-overlay/useFaceOverlay.ts"
+    "src/face-overlay/useFaceOverlay.ts",
+    "src/frame.config.ts"
   ]
 }

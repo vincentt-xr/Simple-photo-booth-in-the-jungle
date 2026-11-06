@@ -87,28 +87,20 @@ export const Scene = () => {
         toucan={toucanTransform}
       />
 
-      {/* 3. SCREEN-SPACE DECORATION — these elements stay fixed to the frame. */}
+      {/* 3. SCREEN-SPACE DECORATION: fixed to the frame. The frame's `src` and
+          `anchors` are literals, so the console's visual editor can swap, move
+          and resize it. The flower is a GIF, which needs `source` to animate,
+          so only code can swap it. */}
       <ScreenSpaceUI>
         <ScreenImage
           name="Footer Frame"
           src="/assets/jungle-canopy-frame.png"
           fit="contain"
+          opacity={1}
           transparent
           alphaTest={0.01}
-          transform={{
-            enabled: true,
-            position: { x: 0, y: 0 },
-            size: { width: 720, height: 1280 },
-            pivot: [0.5, 0.5],
-            rotation: 0,
-            scale2D: { x: 1, y: 1 },
-            referencePixelsPerUnit: 32,
-            renderOrder: 2000,
-            overlay: true,
-            visible: true,
-            showTransformGuides: false,
-          }}
-          transformGuideLayer="overlay"
+          renderOrder={2000}
+          anchors={{ left: -1, right: 1, top: 1, bottom: -1 }}
         />
         <ScreenImage
           name="Flower"

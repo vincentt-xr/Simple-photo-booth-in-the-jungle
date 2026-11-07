@@ -4,6 +4,8 @@ dist/
 opencode.json
 .env
 .env.local
+.env.*.local
 *.log
 .vincentt/
 .DS_Store
+.dev/

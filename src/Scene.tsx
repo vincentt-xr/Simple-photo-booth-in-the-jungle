@@ -31,8 +31,8 @@ const faceMesh = resolveFaceMeshRendererSettings(DEFAULT_FACE_MESH_RENDERER, {
 });
 
 export const Scene = () => {
-  // Keep transform edits in React state so editor preview drag/resize changes
-  // survive re-renders. For a simple fixed asset, use a plain constant instead.
+  // Starting placements for the face-attached images; useFaceOverlay moves them
+  // with the face every frame.
   const [hatTransform] = useState<ScreenTransform2DSettings>({
     enabled: true,
     position: { x: 0, y: 140 },
@@ -75,34 +75,6 @@ export const Scene = () => {
     showTransformGuides: false,
   });
 
-  const [flowerTransform] = useState<ScreenTransform2DSettings>({
-    enabled: false,
-    position: { x: 100, y: 300 },
-    size: { width: 512, height: 512 },
-    pivot: [0.5, 0.5],
-    rotation: 50,
-    scale2D: { x: 1, y: 1 },
-    referencePixelsPerUnit: 32,
-    renderOrder: 3000,
-    overlay: true,
-    visible: true,
-    showTransformGuides: false,
-  });
-
-  const [portraitFrameTransform] = useState<ScreenTransform2DSettings>({
-    enabled: true,
-    position: { x: 0, y: 0 },
-    size: { width: 720, height: 1280 },
-    pivot: [0.5, 0.5],
-    rotation: 0,
-    scale2D: { x: 1, y: 1 },
-    referencePixelsPerUnit: 32,
-    renderOrder: 2000,
-    overlay: true,
-    visible: true,
-    showTransformGuides: false,
-  });
-
   return (
     <>
       {/* 1. FACE EFFECT — replace the texture URL to create a different mask. */}
@@ -115,16 +87,20 @@ export const Scene = () => {
         toucan={toucanTransform}
       />
 
-      {/* 3. SCREEN-SPACE DECORATION — these elements stay fixed to the frame. */}
+      {/* 3. SCREEN-SPACE DECORATION: fixed to the frame. The frame's `src` and
+          `anchors` are literals, so the console's visual editor can swap, move
+          and resize it. The flower is a GIF, which needs `source` to animate,
+          so only code can swap it. */}
       <ScreenSpaceUI>
         <ScreenImage
           name="Footer Frame"
           src="/assets/jungle-canopy-frame.png"
           fit="contain"
+          opacity={1}
           transparent
           alphaTest={0.01}
-          transform={portraitFrameTransform}
-          transformGuideLayer="overlay"
+          renderOrder={2000}
+          anchors={{ left: -1, right: 1, top: 1, bottom: -1 }}
         />
         <ScreenImage
           name="Flower"
@@ -132,7 +108,19 @@ export const Scene = () => {
           fit="contain"
           transparent
           alphaTest={0.01}
-          transform={flowerTransform}
+          transform={{
+            enabled: false,
+            position: { x: 100, y: 300 },
+            size: { width: 512, height: 512 },
+            pivot: [0.5, 0.5],
+            rotation: 50,
+            scale2D: { x: 1, y: 1 },
+            referencePixelsPerUnit: 32,
+            renderOrder: 3000,
+            overlay: true,
+            visible: true,
+            showTransformGuides: false,
+          }}
           transformGuideLayer="overlay"
         />
       </ScreenSpaceUI>

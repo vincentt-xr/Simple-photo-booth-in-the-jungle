@@ -1,16 +1,23 @@
-/* eslint-disable react/no-unknown-property */
-import { useCallback, useEffect, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { flushSync } from "react-dom";
 import {
   XRProvider,
   XRScene,
   VideoBackground,
   XRMediaSource,
-  AspectRatioContainer,
 } from "@vincentt-xr/sdk";
 import {
   useXRContext,
-  useXRReady,
   useXRError,
+  useXRPipelineSnapshot,
+  useXRReady,
 } from "@vincentt-xr/sdk/low-level";
 import { mountViewerBeacon, reportSession } from "@vincentt-xr/analytics";
 import { openConsoleChannel } from "@vincentt-xr/harness";
@@ -18,14 +25,22 @@ import { PerspectiveCamera } from "@react-three/drei";
 
 import { Scene } from "./Scene";
 import { PreviewAnchors } from "./PreviewAnchors";
+import { FrameContainer } from "./FrameContainer";
+import { CaptureControls } from "./CaptureControls";
 import {
   announcedPresets,
   chooseMediaSource,
   isFramed,
   pickFramedDefault,
+  recordRequest,
+  requestsWebcam,
 } from "./framed";
 import type { MediaSourceEnv } from "./framed";
 import { streamFromImageUrl, streamFromVideoUrl } from "./mediaStream";
+import {
+  deriveExperienceStatus,
+  publishExperienceStatus,
+} from "./experienceStatus";
 import { MediaSourceControl } from "./MediaSourceControl";
 import type { MediaPreset } from "./MediaSourceControl";
 
@@ -33,8 +48,26 @@ import type { MediaPreset } from "./MediaSourceControl";
 // Referenced by URL (not bundled) so it stays out of the published bundle —
 // publish runs the webcam default and never hits this path. Editor preview
 // always passes a real VITE_INPUT_URL, so this is a dev/last-resort fallback.
+// Read once: the address does not change while the app runs. In record mode the
+// canvas keeps a fixed pixel ratio and adaptive quality stays off, so a photo
+// or a take has the screen's resolution from the first frame to the last and
+// the recorder never sees the buffer change size mid-file.
+const RECORD = recordRequest();
+const RECORD_CANVAS = RECORD.enabled
+  ? { dpr: Math.min(typeof window === "undefined" ? 1 : window.devicePixelRatio || 1, 2) }
+  : {};
+
 const FALLBACK_VIDEO_URL =
-  "https://cdn.vincentt.studio/assets/preview/v2/videos/Head_tilt_woman.mp4";
+  "https://cdn.vincentt.studio/assets/sdk/debug-ui/v1/videos/idle-woman.mp4";
+const MOBILE_XR_ACCEPTANCE_HARNESS_ENABLED =
+  (globalThis as { VCT_MOBILE_XR_ACCEPTANCE_HARNESS?: boolean })
+    .VCT_MOBILE_XR_ACCEPTANCE_HARNESS === true;
+const MobileXRAcceptanceHarness = MOBILE_XR_ACCEPTANCE_HARNESS_ENABLED
+  ? lazy(async () => ({
+      default: (await import("./MobileXRAcceptanceHarness"))
+        .MobileXRAcceptanceHarness,
+    }))
+  : null;
 
 /**
  * Picks the media source and starts the XR session. Runs once on mount.
@@ -44,12 +77,15 @@ const FALLBACK_VIDEO_URL =
  *   - "video": loop VITE_INPUT_URL (or FALLBACK_VIDEO_URL if unset)
  *   - "photo": draw VITE_INPUT_URL to a canvas as a static 1-frame stream
  *
- * Photo/video sources are pre-mirrored to cancel the SDK's selfie flip.
+ * Photo/video streams are bound with their `sourceKind`, so the SDK draws them
+ * as filmed and names left/right as the person's own side. Without it a stream
+ * is taken for a mirrored webcam.
  *
- * FRAMED: the webcam default is replaced by an SDK video preset. A framed app
- * has no camera grant (the embedder delegates none, deliberately), so starting
- * on the webcam would open with a permission error whose advice cannot work.
- * A configured source is never overridden — see `chooseMediaSource`.
+ * FRAMED: the webcam default is replaced by an SDK video preset, so a framed
+ * app does not open on a camera prompt nobody asked for. If the app's own
+ * address carries `source=webcam` (the gallery's Live frame), or the creator
+ * built with `VITE_FRAMED_SOURCE=webcam`, it starts on the webcam instead. A
+ * configured source is never overridden: see `chooseMediaSource`.
  */
 export const MediaSourceBinder = ({
   onSourceSelected,
@@ -60,6 +96,12 @@ export const MediaSourceBinder = ({
   env?: MediaSourceEnv;
 }) => {
   const { session } = useXRContext();
+  // The trackers the scene mounts register on their own mount effects, which
+  // run AFTER this binder's (it is an earlier sibling). The framed branch waits
+  // one macrotask before reading, so the list it sees is the scene's.
+  const pipeline = useXRPipelineSnapshot();
+  const pipelineRef = useRef(pipeline);
+  pipelineRef.current = pipeline;
 
   useEffect(() => {
     let cancelled = false;
@@ -70,8 +112,10 @@ export const MediaSourceBinder = ({
         {
           VITE_INPUT_SOURCE: env.VITE_INPUT_SOURCE,
           VITE_INPUT_URL: env.VITE_INPUT_URL,
+          VITE_FRAMED_SOURCE: env.VITE_FRAMED_SOURCE,
         },
         isFramed(),
+        requestsWebcam(),
       );
 
       // The switcher is controlled and holds no source state of its own, so the
@@ -87,6 +131,7 @@ export const MediaSourceBinder = ({
         await session.setMediaSource({
           source: XRMediaSource.STREAM,
           stream: handle.stream,
+          sourceKind: "video",
         });
         onSourceSelected?.({
           id: "configured",
@@ -100,7 +145,15 @@ export const MediaSourceBinder = ({
         const { sdkVideoMediaSources } = await import(
           "@vincentt-xr/sdk/debug-ui/media-source"
         );
-        const preset = pickFramedDefault(sdkVideoMediaSources);
+        await new Promise((resolve) => {
+          setTimeout(resolve, 0);
+        });
+        if (cancelled) return;
+        // A hand scene opens on a hand clip, a body scene on a body clip.
+        const preset = pickFramedDefault(
+          sdkVideoMediaSources,
+          pipelineRef.current,
+        );
         if (!preset?.url)
           throw new Error("no video preset available for the framed default");
         const handle = await streamFromVideoUrl(preset.url);
@@ -109,12 +162,17 @@ export const MediaSourceBinder = ({
         await session.setMediaSource({
           source: XRMediaSource.STREAM,
           stream: handle.stream,
+          sourceKind: "video",
         });
         onSourceSelected?.(preset);
       } else if (choice.kind === "photo") {
         const stream = await streamFromImageUrl(choice.url);
         if (cancelled) return;
-        await session.setMediaSource({ source: XRMediaSource.STREAM, stream });
+        await session.setMediaSource({
+          source: XRMediaSource.STREAM,
+          stream,
+          sourceKind: "image",
+        });
         onSourceSelected?.({
           id: "configured",
           kind: "image",
@@ -130,7 +188,10 @@ export const MediaSourceBinder = ({
       await session.start();
     };
 
-    init();
+    // The SDK writes a startup failure (a refused camera) to the session store,
+    // which paints CameraError, then rethrows. The catch only keeps the rethrow
+    // from surfacing as an unhandled rejection; it must never bind a fallback.
+    void init().catch(() => {});
 
     return () => {
       cancelled = true;
@@ -198,7 +259,8 @@ const CameraError = () => {
 
 export const Shell = () => {
   const ready = useXRReady();
-  const reason = useXRError()?.reason;
+  const xrError = useXRError();
+  const reason = xrError?.reason;
   const { session } = useXRContext();
 
   // The app owns the selected source; the switcher only renders it. That is what
@@ -206,8 +268,30 @@ export const Shell = () => {
   // "Webcam" while a preset plays.
   const [selected, setSelected] = useState<MediaPreset | null>(null);
 
+  // Held freezes the PICTURE, not the experience. The whole visible composite is
+  // one canvas — the clip plays into an offscreen canvas, is captureStream()-ed,
+  // and the SDK blits it into a texture drawn INSIDE this r3f scene — so halting
+  // the render loop alone freezes everything on screen. The media RAF loop, the
+  // blit and the trackers keep running deliberately: stopping a camera track can
+  // need a fresh permission gesture to restart, and rebinding a tracker is the
+  // delicate path. The cost is that release JUMPS to where the world now is
+  // rather than resuming from the frozen instant.
+  const [paused, setPaused] = useState(false);
+
   const applySource = useCallback(
     (next: MediaPreset) => {
+      // RELEASE FIRST, THEN APPLY. A swap performed while the render loop is
+      // stopped lands behind a frozen picture, so the creator sees the media
+      // control do nothing.
+      //
+      // `flushSync` is load-bearing, not defensive. Calling `setPaused(false)`
+      // before `apply()` is NOT sufficient: it only queues a re-render, which
+      // React runs after this handler returns, while `apply()` reaches
+      // `setMediaSource` in a microtask that wins the race. The canvas would then
+      // take the new source while still mounted with `frameloop: 'never'` — the
+      // one-frame-behind-the-freeze this ordering exists to prevent. Flushing
+      // commits the released frameloop before the swap is started.
+      flushSync(() => setPaused(false));
       setSelected(next);
       const apply = async () => {
         if (next.kind === "webcam") {
@@ -215,18 +299,23 @@ export const Shell = () => {
           return;
         }
         if (!next.url) return;
+        const sourceKind = next.kind === "image" ? "image" : "video";
         const stream =
-          next.kind === "image"
+          sourceKind === "image"
             ? await streamFromImageUrl(next.url)
             : (await streamFromVideoUrl(next.url)).stream;
-        await session.setMediaSource({ source: XRMediaSource.STREAM, stream });
+        await session.setMediaSource({
+          source: XRMediaSource.STREAM,
+          stream,
+          sourceKind,
+        });
       };
       // The SDK rethrows after writing the failure to the session store, so the
       // error screen paints from that store either way and this catch is only
       // here to keep the rethrow from surfacing as an unhandled rejection.
       // Reachable since the frame gained a camera grant: the webcam entry used
       // to be filtered out before any tap could reach getUserMedia.
-      apply().catch(() => {});
+      void apply().catch(() => {});
     },
     [session],
   );
@@ -251,6 +340,14 @@ export const Shell = () => {
     reportSession({ ready, reason });
   }, [ready, reason]);
 
+  // THE PUBLIC STATUS, beside the private one. Same inputs, a different reader:
+  // the page embedding this experience, which has no beacon to ask. Written to
+  // `<html data-experience>`, dispatched on `window`, and posted to the parent
+  // when framed. See experienceStatus.ts for the shape a host awaits.
+  useEffect(() => {
+    publishExperienceStatus(deriveExperienceStatus(ready, reason), reason);
+  }, [ready, reason]);
+
   // THE CONSOLE'S CHANNEL, framed only.
   //
   // `openConsoleChannel` no-ops when unframed, so the guard here is about not
@@ -266,7 +363,7 @@ export const Shell = () => {
     if (!isFramed()) return undefined;
     let close: (() => void) | undefined;
     let cancelled = false;
-    import("@vincentt-xr/sdk/debug-ui/media-source").then((mod) => {
+    void import("@vincentt-xr/sdk/debug-ui/media-source").then((mod) => {
       if (cancelled) return;
       const presets = mod.defaultMediaSources as unknown as MediaPreset[];
       close = openConsoleChannel({
@@ -275,6 +372,11 @@ export const Shell = () => {
           const preset = presets.find((p) => p.id === id);
           if (preset) applySource(preset);
         },
+        // Supplying this handler is ALSO what declares `render-hold` in the
+        // announce — the harness derives the capability from the wiring rather
+        // than from a list passed beside it, so an app cannot advertise a hold it
+        // does not perform. The console has no ack to detect that with.
+        onSetRenderHold: setPaused,
       });
     });
     return () => {
@@ -284,12 +386,19 @@ export const Shell = () => {
   }, [applySource]);
 
   return (
-    <AspectRatioContainer>
+    <FrameContainer>
       <XRScene
         loadingComponent={<Loading shouldFadeOut={ready} />}
         errorComponent={<CameraError />}
         loadingTransitionDuration={1000}
         style={{ width: "100%", height: "100%" }}
+        // `canvasProps`, NOT a bare `frameloop` — this is `<XRScene>`, the SDK's
+        // component, which owns the `<Canvas>`; r3f's prop does not exist here.
+        // The SDK spreads this AFTER its own gl defaults, so this value wins.
+        // A later path needing `preserveDrawingBuffer` (a screenshot, an
+        // annotation capture) merges into `canvasProps.gl` rather than replacing
+        // `canvasProps`, which would drop the freeze.
+        canvasProps={{ frameloop: paused ? "never" : "always", ...RECORD_CANVAS }}
       >
         <MediaSourceBinder onSourceSelected={setSelected} />
         <PerspectiveCamera makeDefault position={[0, 0, 5]} fov={45} />
@@ -304,12 +413,18 @@ export const Shell = () => {
         <PreviewAnchors />
       </XRScene>
       <MediaSourceControl value={selected} onChange={applySource} />
-    </AspectRatioContainer>
+      {RECORD.enabled ? <CaptureControls audio={RECORD.audio} /> : null}
+      {MobileXRAcceptanceHarness ? (
+        <Suspense fallback={null}>
+          <MobileXRAcceptanceHarness ready={ready} error={xrError?.message} />
+        </Suspense>
+      ) : null}
+    </FrameContainer>
   );
 };
 
 const App = () => (
-  <XRProvider>
+  <XRProvider quality={RECORD.enabled ? false : undefined}>
     <Shell />
   </XRProvider>
 );
